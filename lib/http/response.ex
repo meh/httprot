@@ -48,7 +48,7 @@ defmodule HTTP.Response do
 
   def for(request) do
     socket = elem(request, 1)
-    socket.packet!(:http_bin)
+    socket |> Socket.packet! :http_bin
 
     status  = read_status(socket)
     headers = read_headers([], socket)
@@ -57,14 +57,14 @@ defmodule HTTP.Response do
   end
 
   defp read_status(socket) do
-    case socket.recv! do
+    case socket |> Socket.Stream.recv! do
       { :http_response, _, code, text } ->
         Status[code: code, text: text]
     end
   end
 
   defp read_headers(acc, socket) do
-    case socket.recv! do
+    case socket |> Socket.Stream.recv! do
       :http_eoh ->
         acc
 
@@ -85,18 +85,18 @@ defmodule HTTP.Response do
     end
 
     def read(stream(socket: socket)) do
-      socket.packet! :line
+      socket |> Socket.packet! :line
 
-      case socket.recv! |> String.rstrip |> binary_to_integer(16) do
+      case socket |> Socket.Stream.recv! |> String.rstrip |> binary_to_integer(16) do
         0 ->
-          socket.recv!
+          socket |> Socket.Stream.recv!
           nil
 
         size ->
-          socket.packet! :raw
-          res = socket.recv!(size)
-          socket.packet! :line
-          socket.recv!
+          socket |> Socket.packet! :raw
+          res = socket |> Socket.Stream.recv!(size)
+          socket |> Socket.packet! :line
+          socket |> Socket.Stream.recv!
           res
       end
     end
@@ -127,8 +127,8 @@ defmodule HTTP.Response do
   defp read_body(response(request: req), length) do
     socket = elem(req, 1)
 
-    socket.packet! :raw
-    socket.recv!(length)
+    socket |> Socket.packet! :raw
+    socket |> Socket.Stream.recv!(length)
   end
 
   defp read_chunked(stream) do

@@ -48,8 +48,8 @@ defmodule HTTP.Request do
       end
     end
 
-    socket.send! [method |> to_string |> String.upcase, " ", uri |> request_part, " HTTP/1.1\r\n"]
-    socket.send! ["Host: ", uri.authority, "\r\n"]
+    socket |> Socket.Stream.send! [method |> to_string |> String.upcase, " ", uri |> request_part, " HTTP/1.1\r\n"]
+    socket |> Socket.Stream.send! ["Host: ", uri.authority, "\r\n"]
 
     request(socket: socket, method: method, uri: uri)
   end
@@ -67,7 +67,7 @@ defmodule HTTP.Request do
       headers = Headers.from_list(headers)
     end
 
-    socket.send! Seq.map(headers, fn { name, value } ->
+    socket |> Socket.Stream.send! Seq.map(headers, fn { name, value } ->
       [name, ": ", value, "\r\n"]
     end)
 
@@ -75,13 +75,13 @@ defmodule HTTP.Request do
   end
 
   def send(request(socket: socket) = req) do
-    socket.send! "\r\n"
+    socket |> Socket.Stream.send! "\r\n"
 
     Response.for(req)
   end
 
   def send(data, request(socket: socket) = req) when is_binary(data) do
-    socket.send! [
+    socket |> Socket.Stream.send! [
       "Content-Length: ", data |> size |> integer_to_binary, "\r\n",
       "\r\n",
       data ]
@@ -92,7 +92,7 @@ defmodule HTTP.Request do
   def send(data, request(socket: socket) = req) do
     data = data |> Data.to_list |> URI.encode_query
 
-    socket.send! [
+    socket |> Socket.Stream.send! [
       "Content-Length: ", data |> size |> integer_to_binary, "\r\n",
       "Content-Type: application/x-www-form-urlencoded", "\r\n",
       "\r\n",
@@ -113,12 +113,13 @@ defmodule HTTP.Request do
     end
 
     def write(data, stream(socket: socket)) do
-      socket.send!([:io_lib.format("~.16b", [iolist_size(data)]), "\r\n",
-                    data, "\r\n"])
+      socket |> Socket.Stream.send!([
+        :io_lib.format("~.16b", [iolist_size(data)]), "\r\n",
+        data, "\r\n" ])
     end
 
     def close(stream(socket: socket)) do
-      socket.send! "0\r\n\r\n"
+      socket |> Socket.Stream.send! "0\r\n\r\n"
     end
 
     defimpl Inspect, for: Stream do
@@ -131,7 +132,7 @@ defmodule HTTP.Request do
   end
 
   def stream(request(socket: socket) = request) do
-    socket.send! "Transfer-Encoding: chunked\r\n\r\n"
+    socket |> Socket.Stream.send! "Transfer-Encoding: chunked\r\n\r\n"
 
     Stream.new(request)
   end
