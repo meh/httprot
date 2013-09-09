@@ -153,6 +153,10 @@ defimpl Access, for: HTTP.Headers do
   defdelegate access(self, key), to: HTTP.Headers, as: :get
 end
 
+defimpl Enumerable, for: HTTP.Headers do
+  use Data.Enumerable
+end
+
 defimpl String.Chars, for: HTTP.Headers do
   alias Data.Seq
 
