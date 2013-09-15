@@ -7,23 +7,49 @@
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 defmodule HTTP do
-  def get(uri, headers // []) do
-    HTTP.Request.open(:get, uri).headers(headers).send
+  use Socket.Helpers
+
+  Enum.each [:get, :head], fn name ->
+    def unquote(name)(uri, headers // []) do
+      case HTTP.Request.open(unquote(name), uri) do
+        { :ok, request } ->
+          case request.headers(headers) do
+            { :ok, request } ->
+              request.send
+
+            { :error, _ } = error ->
+              error
+          end
+
+        { :error, _ } = error ->
+          error
+      end
+    end
+
+    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, headers // []) do
+      HTTP.Request.open!(unquote(name), uri).headers!(headers).send!
+    end
   end
 
-  def head(uri, headers // []) do
-    HTTP.Request.open(:head, uri).headers(headers).send
-  end
+  Enum.each [:post, :put, :delete], fn name ->
+    def unquote(name)(uri, data, headers // []) do
+      case HTTP.Request.open(unquote(name), uri) do
+        { :ok, request } ->
+          case request.headers(headers) do
+            { :ok, request } ->
+              request.send(data)
 
-  def post(uri, data, headers // []) do
-    HTTP.Request.open(:post, uri).headers(headers).send(data)
-  end
+            { :error, _ } = error ->
+              error
+          end
 
-  def put(uri, data, headers // []) do
-    HTTP.Request.open(:put, uri).headers(headers).send(data)
-  end
+        { :error, _ } = error ->
+          error
+      end
+    end
 
-  def delete(uri, data, headers // []) do
-    HTTP.Request.open(:delete, uri).headers(headers).send(data)
+    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, data, headers // []) do
+      HTTP.Request.open!(unquote(name), uri).headers!(headers).send!(data)
+    end
   end
 end

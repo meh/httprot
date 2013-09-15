@@ -7,6 +7,8 @@
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 defmodule HTTP.Request do
+  use Socket.Helpers
+
   alias HTTP.Headers
   alias HTTP.Response
   alias Data.Seq
@@ -33,25 +35,47 @@ defmodule HTTP.Request do
     open(method, uri, request(socket: nil))
   end
 
+  defbang open(method, uri)
+
   def open(method, uri, request(socket: socket)) do
     if uri |> is_binary do
       uri = URI.parse(uri)
     end
 
-    unless socket do
-      socket = case uri do
+    connected = unless socket do
+      case uri do
         URI.Info[scheme: "http", host: host, port: port] ->
-          Socket.TCP.connect!(host, port)
+          Socket.TCP.connect(host, port)
 
         URI.Info[scheme: "https", host: host, port: port] ->
-          Socket.SSL.connect!(host, port)
+          Socket.SSL.connect(host, port)
       end
+    else
+      { :ok, socket }
     end
 
-    socket |> Socket.Stream.send! [method |> to_string |> String.upcase, " ", uri |> request_part, " HTTP/1.1\r\n"]
-    socket |> Socket.Stream.send! ["Host: ", uri.authority, "\r\n"]
+    case connected do
+      { :ok, socket } ->
+        case send_prelude(socket, method, uri) do
+          :ok ->
+            { :ok, request(socket: socket, method: method, uri: uri) }
 
-    request(socket: socket, method: method, uri: uri)
+          { :error, _ } = error ->
+            error
+        end
+
+      { :error, _ } = error ->
+        error
+    end
+  end
+
+  defbang open(method, uri, request)
+
+  defp send_prelude(socket, method, uri) do
+    socket |> Socket.Stream.send [
+      method |> to_string |> String.upcase, " ", uri |> request_part, " HTTP/1.1\r\n",
+      "Host: ", uri.authority, "\r\n"
+    ]
   end
 
   defp request_part(URI.Info[path: path, query: nil]) do
@@ -67,41 +91,71 @@ defmodule HTTP.Request do
       headers = Headers.from_list(headers)
     end
 
-    socket |> Socket.Stream.send! Seq.map(headers, fn { name, value } ->
+    case send_headers(socket, headers) do
+      :ok ->
+        { :ok, request(req, headers: headers) }
+
+      { :error, _ } = error ->
+        error
+    end
+  end
+
+  defbang headers(headers, request)
+
+  defp send_headers(socket, headers) do
+    socket |> Socket.Stream.send Seq.map(headers, fn { name, value } ->
       [name, ": ", value, "\r\n"]
     end)
-
-    request(req, headers: headers)
   end
 
   def send(request(socket: socket) = req) do
-    socket |> Socket.Stream.send! "\r\n"
+    case send_epilogue(socket) do
+      :ok ->
+        Response.for(req)
 
-    Response.for(req)
+      { :error, _ } = error ->
+        error
+    end
   end
 
-  def send(data, request(socket: socket) = req) when is_binary(data) do
-    socket |> Socket.Stream.send! [
+  defp send_epilogue(socket) do
+    socket |> Socket.Stream.send "\r\n"
+  end
+
+  defbang send(request)
+
+  def send(data, request(socket: socket) = req) do
+    case send_epilogue(socket, data) do
+      :ok ->
+        Response.for(req)
+
+      { :error, _ } = error ->
+        error
+    end
+  end
+
+  defbang send(data, request)
+
+  defp send_epilogue(socket, data) when data |> is_binary do
+    socket |> Socket.Stream.send [
       "Content-Length: ", data |> size |> integer_to_binary, "\r\n",
       "\r\n",
       data ]
-
-    Response.for(req)
   end
 
-  def send(data, request(socket: socket) = req) do
+  defp send_epilogue(socket, data) do
     data = data |> Data.to_list |> URI.encode_query
 
-    socket |> Socket.Stream.send! [
+    socket |> Socket.Stream.send [
       "Content-Length: ", data |> size |> integer_to_binary, "\r\n",
       "Content-Type: application/x-www-form-urlencoded", "\r\n",
       "\r\n",
       data ]
-
-    Response.for(req)
   end
 
   defmodule Stream do
+    use Socket.Helpers
+
     defrecordp :stream, __MODULE__, request: nil, socket: nil
 
     def new(request) do
@@ -113,14 +167,18 @@ defmodule HTTP.Request do
     end
 
     def write(data, stream(socket: socket)) do
-      socket |> Socket.Stream.send!([
+      socket |> Socket.Stream.send([
         :io_lib.format("~.16b", [iolist_size(data)]), "\r\n",
         data, "\r\n" ])
     end
 
+    defbang write(data, stream)
+
     def close(stream(socket: socket)) do
-      socket |> Socket.Stream.send! "0\r\n\r\n"
+      socket |> Socket.Stream.send "0\r\n\r\n"
     end
+
+    defbang close(stream)
 
     defimpl Inspect, for: Stream do
       import Inspect.Algebra
@@ -132,9 +190,19 @@ defmodule HTTP.Request do
   end
 
   def stream(request(socket: socket) = request) do
-    socket |> Socket.Stream.send! "Transfer-Encoding: chunked\r\n\r\n"
+    case send_stream(socket) do
+      :ok ->
+        { :ok, Stream.new(request) }
 
-    Stream.new(request)
+      { :error, _ } = error ->
+        error
+    end
+  end
+
+  defbang stream(request)
+
+  defp send_stream(socket) do
+    socket |> Socket.Stream.send "Transfer-Encoding: chunked\r\n\r\n"
   end
 end
 

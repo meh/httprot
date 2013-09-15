@@ -7,6 +7,8 @@
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 defmodule HTTP.Response do
+  use Socket.Helpers
+
   alias HTTP.Headers, as: H
   alias Data.Dict, as: D
 
@@ -50,26 +52,43 @@ defmodule HTTP.Response do
     socket = elem(request, 1)
     socket |> Socket.packet! :http_bin
 
-    status  = read_status(socket)
-    headers = read_headers([], socket)
+    case read_status(socket) do
+      { :ok, status } ->
+        case read_headers([], socket) do
+          { :ok, headers } ->
+            { :ok, response(request: request, status: status, headers: headers |> Enum.reverse |> H.from_list) }
 
-    response(request: request, status: status, headers: H.from_list(headers))
+          { :error, _ } = error ->
+            error
+        end
+
+      { :error, _ } = error ->
+        error
+    end
   end
 
+  defbang for(request)
+
   defp read_status(socket) do
-    case socket |> Socket.Stream.recv! do
-      { :http_response, _, code, text } ->
-        Status[code: code, text: text]
+    case socket |> Socket.Stream.recv do
+      { :ok, { :http_response, _, code, text } } ->
+        { :ok, Status[code: code, text: text] }
+
+      { :error, _ } = error ->
+        error
     end
   end
 
   defp read_headers(acc, socket) do
-    case socket |> Socket.Stream.recv! do
-      :http_eoh ->
-        acc
+    case socket |> Socket.Stream.recv do
+      { :ok, :http_eoh } ->
+        { :ok, acc }
 
-      { :http_header, _, name, _, value } ->
+      { :ok, { :http_header, _, name, _, value } } ->
         [{ name, value } | acc] |> read_headers(socket)
+
+      { :error, _ } = error ->
+        error
     end
   end
 
@@ -87,17 +106,40 @@ defmodule HTTP.Response do
     def read(stream(socket: socket)) do
       socket |> Socket.packet! :line
 
-      case socket |> Socket.Stream.recv! |> String.rstrip |> binary_to_integer(16) do
-        0 ->
-          socket |> Socket.Stream.recv!
-          nil
+      case socket |> Socket.Stream.recv do
+        { :ok, line } ->
+          case line |> String.rstrip |> binary_to_integer(16) do
+            0 ->
+              case socket |> Socket.Stream.recv do
+                { :ok, _ } ->
+                  nil
 
-        size ->
-          socket |> Socket.packet! :raw
-          res = socket |> Socket.Stream.recv!(size)
-          socket |> Socket.packet! :line
-          socket |> Socket.Stream.recv!
-          res
+                { :error, _ } = error ->
+                  error
+              end
+
+            size ->
+              socket |> Socket.packet! :raw
+
+              case socket |> Socket.Stream.recv(size) do
+                { :ok, data } ->
+                  socket |> Socket.packet! :line
+
+                  case socket |> Socket.Stream.recv do
+                    { :ok, _ } ->
+                      { :ok, data }
+
+                    { :error, _ } = error ->
+                      error
+                  end
+
+                { :error, _ } = error ->
+                  error
+              end
+          end
+
+        { :error, _ } = error ->
+          error
       end
     end
 
@@ -111,8 +153,10 @@ defmodule HTTP.Response do
   end
 
   def stream(response) do
-    Stream.new(response)
+    { :ok, Stream.new(response) }
   end
+
+  defbang stream(response)
 
   def body(response(headers: headers) = res) do
     cond do
@@ -124,11 +168,13 @@ defmodule HTTP.Response do
     end
   end
 
+  defbang body(response)
+
   defp read_body(response(request: req), length) do
     socket = elem(req, 1)
 
     socket |> Socket.packet! :raw
-    socket |> Socket.Stream.recv!(length)
+    socket |> Socket.Stream.recv(length)
   end
 
   defp read_chunked(stream) do
@@ -137,11 +183,14 @@ defmodule HTTP.Response do
 
   defp read_chunked(acc, stream) do
     case stream.read do
-      nil ->
+      { :ok, nil } ->
         acc
 
-      chunk ->
+      { :ok, chunk } ->
         [chunk | acc] |> read_chunked(stream)
+
+      { :error, _ } = error ->
+        error
     end
   end
 end
