@@ -4,7 +4,7 @@ defmodule Httprot.Mixfile do
   def project do
     [ app: :httprot,
       version: "0.0.1",
-      elixir: "~> 0.10.1-dev",
+      elixir: "~> 0.10.1-dev or ~> 0.11.0",
       deps: deps ]
   end
 
