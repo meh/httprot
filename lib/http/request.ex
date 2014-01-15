@@ -8,6 +8,7 @@
 
 defmodule HTTP.Request do
   use Socket.Helpers
+  import Kernel, except: [send: 2]
 
   alias HTTP.Headers
   alias HTTP.Response
