@@ -10,7 +10,7 @@ defmodule HTTP do
   use Socket.Helpers
 
   Enum.each [:get, :head], fn name ->
-    def unquote(name)(uri, headers // []) do
+    def unquote(name)(uri, headers \\ []) do
       case HTTP.Request.open(unquote(name), uri) do
         { :ok, request } ->
           case request.headers(headers) do
@@ -26,13 +26,13 @@ defmodule HTTP do
       end
     end
 
-    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, headers // []) do
+    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, headers \\ []) do
       HTTP.Request.open!(unquote(name), uri).headers!(headers).send!
     end
   end
 
   Enum.each [:post, :put, :delete], fn name ->
-    def unquote(name)(uri, data, headers // []) do
+    def unquote(name)(uri, data, headers \\ []) do
       case HTTP.Request.open(unquote(name), uri) do
         { :ok, request } ->
           case request.headers(headers) do
@@ -48,7 +48,7 @@ defmodule HTTP do
       end
     end
 
-    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, data, headers // []) do
+    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, data, headers \\ []) do
       HTTP.Request.open!(unquote(name), uri).headers!(headers).send!(data)
     end
   end

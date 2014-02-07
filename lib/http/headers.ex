@@ -36,7 +36,7 @@ defmodule HTTP.Headers do
     List.keymember?(list, String.downcase(key), 0)
   end
 
-  def get(headers(list: list), key, default // nil) do
+  def get(headers(list: list), key, default \\ nil) do
     case List.keyfind(list, String.downcase(key), 0, default) do
       { _, _, value } ->
         value

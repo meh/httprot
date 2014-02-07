@@ -28,7 +28,7 @@ defmodule HTTP.Request do
     headers
   end
 
-  def for(socket // nil) do
+  def for(socket \\ nil) do
     request(socket: socket)
   end
 
