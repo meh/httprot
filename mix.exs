@@ -3,23 +3,24 @@ defmodule Httprot.Mixfile do
 
   def project do
     [ app: :httprot,
-      version: "0.0.1",
-      elixir: "~> 0.12.3",
-      deps: deps ]
+      version: "0.1.0",
+      elixir: "~> 0.13.2",
+      deps: deps,
+      package: package,
+      description: "HTTP client library" ]
   end
 
-  # Configuration for the OTP application
+  defp package do
+    [ contributors: ["meh"],
+      license: "WTFPL",
+      links: [ { "GitHub", "https://github.com/meh/httprot" } ] ]
+  end
+
   def application do
     [ applications: [:socket] ]
   end
 
-  # Returns the list of dependencies in the format:
-  # { :foobar, "0.1", git: "https://github.com/elixir-lang/foobar.git" }
   defp deps do
-    [ { :socket, github: "meh/elixir-socket" },
-      { :datastructures, github: "meh/elixir-datastructures" },
-
-      # TODO: change this to finalizer
-      { :managed_process, github: "meh/elixir-managed_process" } ]
+    [ { :socket, "~> 0.2.2" } ]
   end
 end

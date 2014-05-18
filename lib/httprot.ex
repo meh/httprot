@@ -6,16 +6,22 @@
 #
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
-defmodule HTTP do
-  use Socket.Helpers
+defmodule HTTProt do
+  defmacro __using__(_opts) do
+    quote do
+      alias HTTProt, as: HTTP
+    end
+  end
+
+  alias HTTProt.Request, as: R
 
   Enum.each [:get, :head], fn name ->
     def unquote(name)(uri, headers \\ []) do
-      case HTTP.Request.open(unquote(name), uri) do
+      case R.open(unquote(name), uri) do
         { :ok, request } ->
-          case request.headers(headers) do
+          case request |> R.headers(headers) do
             { :ok, request } ->
-              request.send
+              request |> R.send
 
             { :error, _ } = error ->
               error
@@ -27,17 +33,17 @@ defmodule HTTP do
     end
 
     def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, headers \\ []) do
-      HTTP.Request.open!(unquote(name), uri).headers!(headers).send!
+      R.open!(unquote(name), uri) |> R.headers!(headers) |> R.send!
     end
   end
 
   Enum.each [:post, :put, :delete], fn name ->
     def unquote(name)(uri, data, headers \\ []) do
-      case HTTP.Request.open(unquote(name), uri) do
+      case R.open(unquote(name), uri) do
         { :ok, request } ->
-          case request.headers(headers) do
+          case request |> R.headers(headers) do
             { :ok, request } ->
-              request.send(data)
+              request |> R.send(data)
 
             { :error, _ } = error ->
               error
@@ -49,7 +55,7 @@ defmodule HTTP do
     end
 
     def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, data, headers \\ []) do
-      HTTP.Request.open!(unquote(name), uri).headers!(headers).send!(data)
+      R.open!(unquote(name), uri) |> R.headers!(headers) |> R.send!(data)
     end
   end
 end

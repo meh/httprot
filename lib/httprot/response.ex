@@ -6,57 +6,33 @@
 #
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
-defmodule HTTP.Response do
+defmodule HTTProt.Response do
   use Socket.Helpers
 
-  alias HTTP.Headers, as: H
-  alias Data.Dict, as: D
+  alias __MODULE__, as: R
+  alias HTTProt.Headers, as: H
+  alias HTTProt.Status, as: S
+  alias Dict, as: D
 
-  defrecordp :response, __MODULE__, request: nil, status: nil, headers: nil
+  defstruct [:request, :status, :headers]
 
-  defrecord Status, code: nil, text: nil do
-    def success?(Status[code: code]) when code >= 200 and code < 300 or code == 304 do
-      true
-    end
-
-    def success?(_) do
-      false
-    end
-
-    def failure?(self) do
-      not success?(self)
-    end
+  def success?(%R{status: status}) do
+    status |> S.success?
   end
 
-  def request(response(request: request)) do
-    request
+  def failure?(%R{status: status}) do
+    status |> S.failure?
   end
 
-  def status(response(status: status)) do
-    status
-  end
-
-  def success?(response(status: status)) do
-    status.success?
-  end
-
-  def failure?(response(status: status)) do
-    status.failure?
-  end
-
-  def headers(response(headers: headers)) do
-    headers
-  end
-
-  def for(request) do
-    socket = elem(request, 1)
+  def new(request) do
+    socket = request.socket
     socket |> Socket.packet! :http_bin
 
     case read_status(socket) do
       { :ok, status } ->
         case read_headers([], socket) do
           { :ok, headers } ->
-            { :ok, response(request: request, status: status, headers: headers |> Enum.reverse |> H.from_list) }
+            { :ok, %R{request: request, status: status, headers: headers |> Enum.reverse |> Enum.into(H.new)} }
 
           { :error, _ } = error ->
             error
@@ -67,12 +43,12 @@ defmodule HTTP.Response do
     end
   end
 
-  defbang for(request)
+  defbang new(request)
 
   defp read_status(socket) do
     case socket |> Socket.Stream.recv do
       { :ok, { :http_response, _, code, text } } ->
-        { :ok, Status[code: code, text: text] }
+        { :ok, %S{code: code, text: text} }
 
       { :error, _ } = error ->
         error
@@ -93,17 +69,15 @@ defmodule HTTP.Response do
   end
 
   defmodule Stream do
-    defrecordp :stream, __MODULE__, response: nil, socket: nil
+    alias __MODULE__, as: S
+
+    defstruct [:response, :socket]
 
     def new(response) do
-      stream(response: response, socket: elem(response.request, 1))
+      %S{response: response, socket: response.socket}
     end
 
-    def response(stream(response: response)) do
-      response
-    end
-
-    def read(stream(socket: socket)) do
+    def read(%S{socket: socket}) do
       socket |> Socket.packet! :line
 
       case socket |> Socket.Stream.recv do
@@ -142,14 +116,6 @@ defmodule HTTP.Response do
           error
       end
     end
-
-    defimpl Inspect, for: Stream do
-      import Inspect.Algebra
-
-      def inspect(stream, _opts) do
-        concat ["#Stream", Kernel.inspect(stream.response, _opts)]
-      end
-    end
   end
 
   def stream(response) do
@@ -158,31 +124,31 @@ defmodule HTTP.Response do
 
   defbang stream(response)
 
-  def body(response(headers: headers) = res) do
+  def body(%R{headers: headers} = self) do
     cond do
       length = D.get(headers, "Content-Length") ->
-        read_body(res, length)
+        read_body(self, length)
 
       D.get(headers, "Transfer-Encoding") == "chunked" ->
-        read_chunked(stream(res))
+        read_chunked(stream(self))
     end
   end
 
   defbang body(response)
 
-  defp read_body(response(request: req), length) do
-    socket = elem(req, 1)
+  defp read_body(%R{request: request}, length) do
+    socket = request.socket
 
     socket |> Socket.packet! :raw
     socket |> Socket.Stream.recv(length)
   end
 
   defp read_chunked(stream) do
-    read_chunked([], stream) |> Enum.reverse |> iolist_to_binary
+    read_chunked([], stream) |> Enum.reverse |> iodata_to_binary
   end
 
   defp read_chunked(acc, stream) do
-    case stream.read do
+    case stream |> Stream.read do
       { :ok, nil } ->
         acc
 
@@ -195,14 +161,3 @@ defmodule HTTP.Response do
   end
 end
 
-defimpl Inspect, for: HTTP.Response do
-  import Inspect.Algebra
-
-  def inspect(response, _opts) do
-    concat ["#HTTP.Response<",
-      response.request.method |> to_string |> String.upcase, " ",
-      response.request.uri |> to_string, ": ",
-      response.status.code |> to_string, " ", response.status.text,
-    ">"]
-  end
-end

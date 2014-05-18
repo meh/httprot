@@ -6,60 +6,48 @@
 #
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
-defmodule HTTP.Request do
+defmodule HTTProt.Request do
   use Socket.Helpers
   import Kernel, except: [send: 2]
 
-  alias HTTP.Headers
-  alias HTTP.Response
-  alias Data.Seq
+  alias __MODULE__, as: R
+  alias HTTProt.Headers
+  alias HTTProt.Response
 
-  defrecordp :request, __MODULE__, socket: nil, method: nil, uri: nil, headers: nil
+  defstruct [:socket, :method, :uri, :headers]
 
-  def method(request(method: method)) do
-    method
-  end
-
-  def uri(request(uri: uri)) do
-    uri
-  end
-
-  def headers(request(headers: headers)) do
-    headers
-  end
-
-  def for(socket \\ nil) do
-    request(socket: socket)
+  def new(socket \\ nil) do
+    %R{socket: socket}
   end
 
   def open(method, uri) do
-    open(method, uri, request(socket: nil))
+    open(%R{socket: nil}, method, uri)
   end
 
   defbang open(method, uri)
 
-  def open(method, uri, request(socket: socket)) do
+  def open(%R{socket: socket}, method, uri) do
     if uri |> is_binary do
       uri = URI.parse(uri)
     end
 
-    connected = unless socket do
+    connected = if socket do
+      { :ok, socket }
+    else
       case uri do
-        URI.Info[scheme: "http", host: host, port: port] ->
+        %URI{scheme: "http", host: host, port: port} ->
           Socket.TCP.connect(host, port)
 
-        URI.Info[scheme: "https", host: host, port: port] ->
+        %URI{scheme: "https", host: host, port: port} ->
           Socket.SSL.connect(host, port)
       end
-    else
-      { :ok, socket }
     end
 
     case connected do
       { :ok, socket } ->
         case send_prelude(socket, method, uri) do
           :ok ->
-            { :ok, request(socket: socket, method: method, uri: uri) }
+            { :ok, %R{socket: socket, method: method, uri: uri} }
 
           { :error, _ } = error ->
             error
@@ -70,7 +58,7 @@ defmodule HTTP.Request do
     end
   end
 
-  defbang open(method, uri, request)
+  defbang open(request, method, uri)
 
   defp send_prelude(socket, method, uri) do
     socket |> Socket.Stream.send [
@@ -79,40 +67,40 @@ defmodule HTTP.Request do
     ]
   end
 
-  defp request_part(URI.Info[path: path, query: nil]) do
+  defp request_part(%URI{path: path, query: nil}) do
     path || "/"
   end
 
-  defp request_part(URI.Info[path: path, query: query]) do
+  defp request_part(%URI{path: path, query: query}) do
     [path || "/", ??, query]
   end
 
-  def headers(headers, request(socket: socket) = req) do
+  def headers(%R{socket: socket} = self, headers) do
     if headers |> is_list do
-      headers = Headers.from_list(headers)
+      headers = headers |> Enum.into(Headers.new)
     end
 
     case send_headers(socket, headers) do
       :ok ->
-        { :ok, request(req, headers: headers) }
+        { :ok, %R{self | headers: headers} }
 
       { :error, _ } = error ->
         error
     end
   end
 
-  defbang headers(headers, request)
+  defbang headers(self, headers)
 
   defp send_headers(socket, headers) do
-    socket |> Socket.Stream.send Seq.map(headers, fn { name, value } ->
-      [name, ": ", value, "\r\n"]
-    end)
+    Enum.each headers, fn { name, value } ->
+      socket |> Socket.Stream.send [name, ": ", value, "\r\n"]
+    end
   end
 
-  def send(request(socket: socket) = req) do
+  def send(%R{socket: socket} = self) do
     case send_epilogue(socket) do
       :ok ->
-        Response.for(req)
+        Response.new(self)
 
       { :error, _ } = error ->
         error
@@ -125,17 +113,17 @@ defmodule HTTP.Request do
 
   defbang send(request)
 
-  def send(data, request(socket: socket) = req) do
+  def send(%R{socket: socket} = self, data) do
     case send_epilogue(socket, data) do
       :ok ->
-        Response.for(req)
+        Response.new(self)
 
       { :error, _ } = error ->
         error
     end
   end
 
-  defbang send(data, request)
+  defbang send(request, data)
 
   defp send_epilogue(socket, data) when data |> is_binary do
     socket |> Socket.Stream.send [
@@ -145,7 +133,7 @@ defmodule HTTP.Request do
   end
 
   defp send_epilogue(socket, data) do
-    data = data |> Data.to_list |> URI.encode_query
+    data = data |> URI.encode_query
 
     socket |> Socket.Stream.send [
       "Content-Length: ", data |> size |> integer_to_binary, "\r\n",
@@ -156,44 +144,33 @@ defmodule HTTP.Request do
 
   defmodule Stream do
     use Socket.Helpers
+    alias __MODULE__, as: S
 
-    defrecordp :stream, __MODULE__, request: nil, socket: nil
+    defstruct [:request, :socket]
 
     def new(request) do
-      stream(request: request, socket: elem(request, 1))
+      %S{request: request, socket: request.socket}
     end
 
-    def request(stream(request: request)) do
-      request
+    def write(%S{socket: socket}, data) do
+      socket |> Socket.Stream.send [
+        :io_lib.format("~.16b", [iodata_length(data)]), "\r\n",
+        data, "\r\n" ]
     end
 
-    def write(data, stream(socket: socket)) do
-      socket |> Socket.Stream.send([
-        :io_lib.format("~.16b", [iolist_size(data)]), "\r\n",
-        data, "\r\n" ])
-    end
+    defbang write(stream, data)
 
-    defbang write(data, stream)
-
-    def close(stream(socket: socket)) do
+    def close(%S{socket: socket}) do
       socket |> Socket.Stream.send "0\r\n\r\n"
     end
 
     defbang close(stream)
-
-    defimpl Inspect, for: Stream do
-      import Inspect.Algebra
-
-      def inspect(stream, _opts) do
-        concat ["#Stream", Kernel.inspect(stream.request, _opts)]
-      end
-    end
   end
 
-  def stream(request(socket: socket) = request) do
+  def stream(%R{socket: socket} = self) do
     case send_stream(socket) do
       :ok ->
-        { :ok, Stream.new(request) }
+        { :ok, Stream.new(self) }
 
       { :error, _ } = error ->
         error
@@ -204,16 +181,5 @@ defmodule HTTP.Request do
 
   defp send_stream(socket) do
     socket |> Socket.Stream.send "Transfer-Encoding: chunked\r\n\r\n"
-  end
-end
-
-defimpl Inspect, for: HTTP.Request do
-  import Inspect.Algebra
-
-  def inspect(request, _opts) do
-    concat ["#HTTP.Request<",
-      request.method |> to_string |> String.upcase, " ",
-      request.uri |> to_string,
-    ">"]
   end
 end
