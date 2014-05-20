@@ -11,6 +11,14 @@ defmodule HTTProt.Status do
 
   defstruct [:code, :text]
 
+  def new(code) do
+    %S{code: code, text: to_string(code)}
+  end
+
+  def new(code, text) do
+    %S{code: code, text: text}
+  end
+
   def success?(%S{code: code}) when code >= 200 and code < 300 or code == 304 do
     true
   end
