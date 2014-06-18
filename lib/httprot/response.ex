@@ -82,7 +82,7 @@ defmodule HTTProt.Response do
 
       case socket |> Socket.Stream.recv do
         { :ok, line } ->
-          case line |> String.rstrip |> binary_to_integer(16) do
+          case line |> String.rstrip |> String.to_integer(16) do
             0 ->
               case socket |> Socket.Stream.recv do
                 { :ok, _ } ->
@@ -144,7 +144,7 @@ defmodule HTTProt.Response do
   end
 
   defp read_chunked(stream) do
-    read_chunked([], stream) |> Enum.reverse |> iodata_to_binary
+    read_chunked([], stream) |> Enum.reverse |> IO.iodata_to_binary
   end
 
   defp read_chunked(acc, stream) do
