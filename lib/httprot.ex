@@ -32,7 +32,7 @@ defmodule HTTProt do
       end
     end
 
-    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, headers \\ []) do
+    def unquote(to_string(name) <> "!" |> String.to_atom)(uri, headers \\ []) do
       R.open!(unquote(name), uri) |> R.headers!(headers) |> R.send!
     end
   end
@@ -54,7 +54,7 @@ defmodule HTTProt do
       end
     end
 
-    def unquote(to_string(name) <> "!" |> binary_to_atom)(uri, data, headers \\ []) do
+    def unquote(to_string(name) <> "!" |> String.to_atom)(uri, data, headers \\ []) do
       R.open!(unquote(name), uri) |> R.headers!(headers) |> R.send!(data)
     end
   end
