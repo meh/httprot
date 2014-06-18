@@ -8,6 +8,7 @@
 
 defmodule HTTProt.Status do
   alias __MODULE__, as: S
+  import Kernel, except: [to_string: 1]
 
   defstruct [:code, :text]
 
