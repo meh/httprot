@@ -11,7 +11,7 @@ defmodule HTTProt.Headers do
 
   defstruct list: []
 
-  use Dict.Behaviour
+  use Dict
 
   def new do
     %H{}
@@ -31,7 +31,7 @@ defmodule HTTProt.Headers do
   end
 
   defp out!("content-length", value) do
-    binary_to_integer(value)
+    String.to_integer(value)
   end
 
   defp out!("accept", value) do
@@ -108,8 +108,13 @@ defmodule HTTProt.Headers do
   end
 
   defimpl Access do
-    def access(headers, key) do
-      HTTProt.Headers.get(headers, key)
+    def get(headers, key) do
+      Dict.get(headers, key)
+    end
+
+    def get_and_update(table, key, fun) do
+      { get, update } = fun.(Dict.get(table, key))
+      { get, Dict.put(table, key, update) }
     end
   end
 
