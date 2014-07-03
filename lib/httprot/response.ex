@@ -12,7 +12,6 @@ defmodule HTTProt.Response do
   alias __MODULE__, as: R
   alias HTTProt.Headers, as: H
   alias HTTProt.Status, as: S
-  alias Dict, as: D
 
   defstruct [:request, :status, :headers]
 
@@ -126,10 +125,10 @@ defmodule HTTProt.Response do
 
   def body(%R{headers: headers} = self) do
     cond do
-      length = D.get(headers, "Content-Length") ->
+      length = headers["Content-Length"] ->
         read_body(self, length)
 
-      D.get(headers, "Transfer-Encoding") == "chunked" ->
+      headers["Transfer-Encoding"] == "chunked" ->
         read_chunked(stream(self))
     end
   end
