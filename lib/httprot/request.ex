@@ -127,7 +127,7 @@ defmodule HTTProt.Request do
 
   defp send_epilogue(socket, data) when data |> is_binary do
     socket |> Socket.Stream.send [
-      "Content-Length: ", data |> size |> Integer.to_string, "\r\n",
+      "Content-Length: ", data |> byte_size |> Integer.to_string, "\r\n",
       "\r\n",
       data ]
   end
@@ -136,7 +136,7 @@ defmodule HTTProt.Request do
     data = data |> URI.encode_query
 
     socket |> Socket.Stream.send [
-      "Content-Length: ", data |> size |> Integer.to_string, "\r\n",
+      "Content-Length: ", data |> byte_size |> Integer.to_string, "\r\n",
       "Content-Type: application/x-www-form-urlencoded", "\r\n",
       "\r\n",
       data ]
