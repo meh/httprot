@@ -17,6 +17,23 @@ defmodule HTTProt.Headers do
     %H{}
   end
 
+  def new(enum) do
+    Enum.reduce(enum, %{}, fn { name, value }, headers ->
+      name = to_string(name)
+      key  = String.downcase(name)
+
+      Dict.update headers, key, { name, value }, fn
+        { name, old } when old |> is_list ->
+          { name, old ++ [value] }
+
+        { name, old } ->
+          { name, [old, value] }
+      end
+    end) |> Enum.into(new, fn { _, { name, value } } ->
+      { name, value }
+    end)
+  end
+
   def fetch(self, name) do
     name = name |> to_string
     key  = String.downcase(name)
