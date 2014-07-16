@@ -31,7 +31,7 @@ defmodule HTTProt.Response do
       { :ok, status } ->
         case read_headers([], socket) do
           { :ok, headers } ->
-            { :ok, %R{request: request, status: status, headers: headers |> Enum.reverse |> Enum.into(H.new)} }
+            { :ok, %R{request: request, status: status, headers: H.new(headers |> Enum.reverse)} }
 
           { :error, _ } = error ->
             error
