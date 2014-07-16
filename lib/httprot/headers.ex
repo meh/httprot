@@ -47,6 +47,10 @@ defmodule HTTProt.Headers do
     end
   end
 
+  defp out!("cache-control", value) do
+    value |> String.split(~r/\s*,\s*/)
+  end
+
   defp out!("content-length", value) do
     String.to_integer(value)
   end
@@ -72,6 +76,10 @@ defmodule HTTProt.Headers do
     key  = String.downcase(name)
 
     %H{self | list: self.list |> List.keystore(key, 0, { key, name, in!(key, value) })}
+  end
+
+  defp in!("cache-control", value) when value |> is_list do
+    value |> Enum.join(", ")
   end
 
   defp in!("content-length", value) do
