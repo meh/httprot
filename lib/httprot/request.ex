@@ -92,9 +92,7 @@ defmodule HTTProt.Request do
   defbang headers(self, headers)
 
   defp send_headers(socket, headers) do
-    Enum.each headers, fn { name, value } ->
-      socket |> Socket.Stream.send [name, ": ", value, "\r\n"]
-    end
+    socket |> Socket.Stream.send Headers.to_iodata(headers)
   end
 
   def send(%R{socket: socket} = self) do
