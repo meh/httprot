@@ -7,9 +7,10 @@
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 defmodule HTTProt.Headers do
-  alias __MODULE__, as: H
-
   defstruct list: []
+
+  alias __MODULE__, as: H
+  alias HTTProt.Cookie
 
   use Dict
 
@@ -17,17 +18,31 @@ defmodule HTTProt.Headers do
     %H{}
   end
 
-  def new(enum) do
+  def parse(string) when string |> is_binary do
+    for line <- string |> String.split(~r/\r?\n/), line != "" do
+      [name, value] = line |> String.split(~r/\s*:\s*/, parts: 2)
+
+      { name, value }
+    end |> parse
+  end
+
+  def parse(enum) do
     Enum.reduce(enum, %{}, fn { name, value }, headers ->
       name = to_string(name)
       key  = String.downcase(name)
 
-      Dict.update headers, key, { name, value }, fn
+      Dict.update headers, key, { name, from_string(key, value) }, fn
         { name, old } when old |> is_list ->
-          { name, old ++ [value] }
+          { name, old ++ from_string(key, value) }
 
         { name, old } ->
-          { name, [old, value] }
+          case from_string(key, value) do
+            value when value |> is_list ->
+              { name, [old | value] }
+
+            value ->
+              { name, value }
+          end
       end
     end) |> Enum.into(new, fn { _, { name, value } } ->
       { name, value }
@@ -40,64 +55,22 @@ defmodule HTTProt.Headers do
 
     case self.list |> List.keyfind(key, 0) do
       { _, _, value } ->
-        { :ok, out!(key, value) }
+        { :ok, value }
 
       nil ->
         :error
     end
   end
 
-  defp out!("cache-control", value) do
-    value |> String.split(~r/\s*,\s*/)
-  end
-
-  defp out!("content-length", value) do
-    String.to_integer(value)
-  end
-
-  defp out!("accept", value) do
-    for part <- value |> String.split(~r/\s*,\s*/) do
-      case part |> String.split(~r/\s*;\s*/) do
-        [type] ->
-          { type, 1.0 }
-
-        [type, "q=" <> quality] ->
-          { type, Float.parse(quality) |> elem(0) }
-      end
-    end
-  end
-
-  defp out!(_, value) do
-    value
-  end
-
   def put(self, name, value) do
     name = name |> to_string
     key  = String.downcase(name)
 
-    %H{self | list: self.list |> List.keystore(key, 0, { key, name, in!(key, value) })}
-  end
+    if value |> is_binary do
+      value = from_string(key, value)
+    end
 
-  defp in!("cache-control", value) when value |> is_list do
-    value |> Enum.join(", ")
-  end
-
-  defp in!("content-length", value) do
-    value |> to_string
-  end
-
-  defp in!("accept", value) when value |> is_list do
-    for { name, quality } <- value do
-      if quality == 1.0 do
-        name
-      else
-        "#{name};q=#{quality}"
-      end
-    end |> Enum.join ","
-  end
-
-  defp in!(_, value) do
-    value
+    %H{self | list: self.list |> List.keystore(key, 0, { key, name, value })}
   end
 
   def delete(self, name) do
@@ -109,6 +82,71 @@ defmodule HTTProt.Headers do
 
   def size(self) do
     self.list |> length
+  end
+
+  def to_iodata(self) do
+    for { name, value } <- self, into: [] do
+      [name, ": ", to_string(String.downcase(name), value), "\r\n"]
+    end
+  end
+
+  defp to_string("accept", value) when value |> is_list do
+    for { name, quality } <- value do
+      if quality == 1.0 do
+        name
+      else
+        "#{name};q=#{quality}"
+      end
+    end |> Enum.join ","
+  end
+
+  defp to_string("content-length", value) do
+    value |> to_string
+  end
+
+  defp to_string("cookie", value) do
+    Enum.map(value, &URI.encode_query([{ &1.name, &1.value }]))
+      |> Enum.join("; ")
+  end
+
+  defp to_string(_, value) when value |> is_list do
+    Enum.join value, ", "
+  end
+
+  defp to_string(_, value) when value |> is_binary do
+    value
+  end
+
+  defp from_string("accept", value) do
+    for part <- value |> String.split(~r/\s*,\s*/) do
+      case part |> String.split(~r/\s*;\s*/) do
+        [type] ->
+          { type, 1.0 }
+
+        [type, "q=" <> quality] ->
+          { type, Float.parse(quality) |> elem(0) }
+      end
+    end
+  end
+
+  defp from_string("cache-control", value) do
+    value |> String.split(~r/\s*,\s*/)
+  end
+
+  defp from_string("content-length", value) do
+    String.to_integer(value)
+  end
+
+  defp from_string("cookie", value) do
+    for cookie <- value |> String.split(~r/\s*;\s*/) do
+      [name, value] = String.split(cookie, ~r/=/)
+
+      %Cookie{name: name, value: value}
+    end
+  end
+
+  defp from_string(_, value) do
+    value
   end
 
   @doc false
@@ -128,8 +166,14 @@ defmodule HTTProt.Headers do
     { :done, acc }
   end
 
-  def reduce([{ key, name, value } | rest], { :cont, acc }, fun) do
-    reduce(rest, fun.({ name, out!(key, value) }, acc), fun)
+  def reduce([{ _key, name, value } | rest], { :cont, acc }, fun) do
+    reduce(rest, fun.({ name, value }, acc), fun)
+  end
+
+  defimpl String.Chars do
+    def to_string(self) do
+      H.to_iodata(self) |> IO.iodata_to_binary
+    end
   end
 
   defimpl Access do
@@ -145,11 +189,11 @@ defmodule HTTProt.Headers do
 
   defimpl Enumerable do
     def reduce(headers, acc, fun) do
-      HTTProt.Headers.reduce(headers, acc, fun)
+      H.reduce(headers, acc, fun)
     end
 
     def member?(headers, { key, value }) do
-      { :ok, match?({ :ok, ^value }, HTTProt.Headers.fetch(headers, key)) }
+      { :ok, match?({ :ok, ^value }, H.fetch(headers, key)) }
     end
 
     def member?(_, _) do
@@ -157,13 +201,13 @@ defmodule HTTProt.Headers do
     end
 
     def count(headers) do
-      { :ok, HTTProt.Headers.size(headers) }
+      { :ok, H.size(headers) }
     end
   end
 
   defimpl Collectable do
     def empty(_) do
-      HTTProt.Headers.new
+      H.new
     end
 
     def into(original) do
