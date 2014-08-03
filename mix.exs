@@ -3,8 +3,8 @@ defmodule Httprot.Mixfile do
 
   def project do
     [ app: :httprot,
-      version: "0.1.3",
-      elixir: "~> 0.14.3",
+      version: "0.1.4",
+      elixir: "~> 0.15.0",
       deps: deps,
       package: package,
       description: "HTTP client library" ]
@@ -13,7 +13,7 @@ defmodule Httprot.Mixfile do
   defp package do
     [ contributors: ["meh"],
       licenses: ["WTFPL"],
-      links: [ { "GitHub", "https://github.com/meh/httprot" } ] ]
+      links: %{"GitHub" => "https://github.com/meh/httprot"} ]
   end
 
   def application do
