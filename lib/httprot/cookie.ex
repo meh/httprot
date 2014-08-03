@@ -1,0 +1,19 @@
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#                    Version 2, December 2004
+#
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+#
+#  0. You just DO WHAT THE FUCK YOU WANT TO.
+
+defmodule HTTProt.Cookie do
+  defstruct [:name, :value, :domain, :path, :secure, :http_only, :version, :comment]
+
+  @type t :: %__MODULE__{
+    name:  String.t,
+    value: String.t }
+
+  def matches?(cookie, uri) do
+    false
+  end
+end
