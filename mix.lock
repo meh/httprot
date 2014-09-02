@@ -1,2 +1,2 @@
-%{"continuum": {:git, "git://github.com/meh/continuum.git", "02ae208e0cc527e34b43fb85bc81d7fe9ef4189e", []},
-  "socket": {:package, "0.2.7"}}
+%{"continuum": {:git, "git://github.com/meh/continuum.git", "4125f9d428971568f16da78cec24fddce18d6eca", []},
+  "socket": {:package, "0.2.8"}}

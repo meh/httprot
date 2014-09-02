@@ -3,8 +3,8 @@ defmodule Httprot.Mixfile do
 
   def project do
     [ app: :httprot,
-      version: "0.1.4",
-      elixir: "~> 0.15.0",
+      version: "0.1.5",
+      elixir: "~> 1.0.0-rc1",
       deps: deps,
       package: package,
       description: "HTTP client library" ]
