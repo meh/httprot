@@ -139,7 +139,7 @@ defmodule HTTProt.Headers do
 
   defp from_string("cookie", value) do
     for cookie <- value |> String.split(~r/\s*;\s*/) do
-      [name, value] = String.split(cookie, ~r/=/)
+      [name, value] = String.split(cookie, ~r/=/, parts: 2)
 
       %Cookie{name: name, value: value}
     end
