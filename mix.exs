@@ -3,7 +3,7 @@ defmodule Httprot.Mixfile do
 
   def project do
     [ app: :httprot,
-      version: "0.1.6",
+      version: "0.1.7",
       elixir: "~> 1.0.0-rc1",
       deps: deps,
       package: package,
@@ -21,7 +21,6 @@ defmodule Httprot.Mixfile do
   end
 
   defp deps do
-    [ { :socket, "~> 0.2.6" },
-      { :continuum, github: "meh/continuum" } ]
+    [ { :socket, "~> 0.3.0" } ]
   end
 end
