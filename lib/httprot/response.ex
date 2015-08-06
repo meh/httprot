@@ -130,6 +130,9 @@ defmodule HTTProt.Response do
 
       headers["Transfer-Encoding"] == "chunked" ->
         read_chunked(stream!(self))
+
+      true ->
+        read_whole(self)
     end
   end
 
@@ -164,5 +167,30 @@ defmodule HTTProt.Response do
         error
     end
   end
-end
 
+  defp read_whole(%R{request: request}) do
+    socket = request.socket
+    socket |> Socket.packet! :raw
+
+    case read_whole([], socket) do
+      { :ok, acc } ->
+        { :ok, acc |> Enum.reverse |> IO.iodata_to_binary }
+
+      { :error, _ } = error ->
+        error
+    end
+  end
+
+  defp read_whole(acc, socket) do
+    case socket |> Socket.Stream.recv do
+      { :ok, nil } ->
+        { :ok, acc }
+
+      { :ok, chunk } ->
+        [chunk | acc] |> read_whole(socket)
+
+      { :error, _ } = error ->
+        error
+    end
+  end
+end
