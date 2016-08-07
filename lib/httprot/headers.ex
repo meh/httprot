@@ -1,7 +1,7 @@
 #            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
 #                    Version 2, December 2004
 #
-#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+#            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSEa
 #   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 #
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
@@ -173,17 +173,6 @@ defmodule HTTProt.Headers do
   defimpl String.Chars do
     def to_string(self) do
       H.to_iodata(self) |> IO.iodata_to_binary
-    end
-  end
-
-  defimpl Access do
-    def get(headers, key) do
-      Dict.get(headers, key)
-    end
-
-    def get_and_update(table, key, fun) do
-      { get, update } = fun.(Dict.get(table, key))
-      { get, Dict.put(table, key, update) }
     end
   end
 
