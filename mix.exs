@@ -3,7 +3,7 @@ defmodule Httprot.Mixfile do
 
   def project do
     [ app: :httprot,
-      version: "0.1.7",
+      version: "0.1.8",
       deps: deps(),
       package: package(),
       description: "HTTP client library" ]
@@ -20,7 +20,7 @@ defmodule Httprot.Mixfile do
   end
 
   defp deps do
-    [ { :socket, "~> 0.3.0" },
+    [ { :socket, "~> 0.3" },
       { :datastructures, "~> 0.2" },
       { :ex_doc, "~> 0.14", only: [:dev] } ]
   end
