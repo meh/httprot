@@ -27,8 +27,10 @@ defmodule HTTProt.Request do
   defbang open(method, uri)
 
   def open(%R{socket: socket}, method, uri) do
-    if uri |> is_binary do
-      uri = URI.parse(uri)
+    uri = if uri |> is_binary do
+      URI.parse(uri)
+    else
+      uri
     end
 
     connected = if socket do
@@ -61,10 +63,10 @@ defmodule HTTProt.Request do
   defbang open(request, method, uri)
 
   defp send_prelude(socket, method, uri) do
-    socket |> Socket.Stream.send [
+    socket |> Socket.Stream.send([
       method |> to_string |> String.upcase, " ", uri |> request_part, " HTTP/1.1\r\n",
       "Host: ", uri.authority, "\r\n"
-    ]
+    ])
   end
 
   defp request_part(%URI{path: path, query: nil}) do
@@ -76,8 +78,10 @@ defmodule HTTProt.Request do
   end
 
   def headers(%R{socket: socket} = self, headers) do
-    if headers |> is_list do
-      headers = headers |> Enum.into(Headers.new)
+    headers = if headers |> is_list do
+      headers |> Enum.into(Headers.new)
+    else
+      headers
     end
 
     case send_headers(socket, headers) do
@@ -92,7 +96,7 @@ defmodule HTTProt.Request do
   defbang headers(self, headers)
 
   defp send_headers(socket, headers) do
-    socket |> Socket.Stream.send Headers.to_iodata(headers)
+    socket |> Socket.Stream.send(Headers.to_iodata(headers))
   end
 
   def send(%R{socket: socket} = self) do
@@ -106,7 +110,7 @@ defmodule HTTProt.Request do
   end
 
   defp send_epilogue(socket) do
-    socket |> Socket.Stream.send "\r\n"
+    socket |> Socket.Stream.send("\r\n")
   end
 
   defbang send(request)
@@ -124,20 +128,20 @@ defmodule HTTProt.Request do
   defbang send(request, data)
 
   defp send_epilogue(socket, data) when data |> is_binary do
-    socket |> Socket.Stream.send [
+    socket |> Socket.Stream.send([
       "Content-Length: ", data |> byte_size |> Integer.to_string, "\r\n",
       "\r\n",
-      data ]
+      data ])
   end
 
   defp send_epilogue(socket, data) do
     data = data |> URI.encode_query
 
-    socket |> Socket.Stream.send [
+    socket |> Socket.Stream.send([
       "Content-Length: ", data |> byte_size |> Integer.to_string, "\r\n",
       "Content-Type: application/x-www-form-urlencoded", "\r\n",
       "\r\n",
-      data ]
+      data ])
   end
 
   defmodule Stream do
@@ -151,15 +155,15 @@ defmodule HTTProt.Request do
     end
 
     def write(%S{socket: socket}, data) do
-      socket |> Socket.Stream.send [
+      socket |> Socket.Stream.send([
         :io_lib.format("~.16b", [IO.iodata_length(data)]), "\r\n",
-        data, "\r\n" ]
+        data, "\r\n" ])
     end
 
     defbang write(stream, data)
 
     def close(%S{socket: socket}) do
-      socket |> Socket.Stream.send "0\r\n\r\n"
+      socket |> Socket.Stream.send("0\r\n\r\n")
     end
 
     defbang close(stream)
@@ -178,6 +182,6 @@ defmodule HTTProt.Request do
   defbang stream(request)
 
   defp send_stream(socket) do
-    socket |> Socket.Stream.send "Transfer-Encoding: chunked\r\n\r\n"
+    socket |> Socket.Stream.send("Transfer-Encoding: chunked\r\n\r\n")
   end
 end

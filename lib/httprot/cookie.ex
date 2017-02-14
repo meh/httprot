@@ -13,7 +13,7 @@ defmodule HTTProt.Cookie do
     name:  String.t,
     value: String.t }
 
-  def matches?(cookie, uri) do
+  def matches?(_cookie, _uri) do
     false
   end
 end

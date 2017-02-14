@@ -9,13 +9,12 @@
 defmodule HTTProt.Headers do
   defstruct list: []
 
-  alias __MODULE__, as: H
+  alias __MODULE__, as: T
   alias HTTProt.Cookie
-
-  use Dict
+  alias Data.Protocol, as: D
 
   def new do
-    %H{}
+    %T{}
   end
 
   def parse(string) when string |> is_binary do
@@ -31,7 +30,7 @@ defmodule HTTProt.Headers do
       name = to_string(name)
       key  = String.downcase(name)
 
-      Dict.update headers, key, { name, from_string(key, value) }, fn
+      Data.Dict.update headers, key, { name, from_string(key, value) }, fn
         { name, old } when old |> is_list ->
           { name, old ++ from_string(key, value) }
 
@@ -44,7 +43,7 @@ defmodule HTTProt.Headers do
               { name, value }
           end
       end
-    end) |> Enum.into(new, fn { _, { name, value } } ->
+    end) |> Enum.into(new(), fn { _, { name, value } } ->
       { name, value }
     end)
   end
@@ -63,21 +62,22 @@ defmodule HTTProt.Headers do
   end
 
   def put(self, name, value) do
-    name = name |> to_string
-    key  = String.downcase(name)
-
-    if value |> is_binary do
-      value = from_string(key, value)
+    name  = name |> to_string
+    key   = String.downcase(name)
+    value = if value |> is_binary do
+      from_string(key, value)
+    else
+      value
     end
 
-    %H{self | list: self.list |> List.keystore(key, 0, { key, name, value })}
+    %T{self | list: self.list |> List.keystore(key, 0, { key, name, value })}
   end
 
   def delete(self, name) do
     name = name |> to_string
     key  = String.downcase(name)
 
-    %H{self | list: self.list |> List.keydelete(key, 0)}
+    %T{self | list: self.list |> List.keydelete(key, 0)}
   end
 
   def size(self) do
@@ -97,7 +97,7 @@ defmodule HTTProt.Headers do
       else
         "#{name};q=#{quality}"
       end
-    end |> Enum.join ","
+    end |> Enum.join(",")
   end
 
   defp to_string("content-length", value) do
@@ -150,7 +150,7 @@ defmodule HTTProt.Headers do
   end
 
   @doc false
-  def reduce(%H{list: list}, acc, fun) do
+  def reduce(%T{list: list}, acc, fun) do
     reduce(list, acc, fun)
   end
 
@@ -172,17 +172,17 @@ defmodule HTTProt.Headers do
 
   defimpl String.Chars do
     def to_string(self) do
-      H.to_iodata(self) |> IO.iodata_to_binary
+      T.to_iodata(self) |> IO.iodata_to_binary
     end
   end
 
   defimpl Enumerable do
     def reduce(headers, acc, fun) do
-      H.reduce(headers, acc, fun)
+      T.reduce(headers, acc, fun)
     end
 
     def member?(headers, { key, value }) do
-      { :ok, match?({ :ok, ^value }, H.fetch(headers, key)) }
+      { :ok, match?({ :ok, ^value }, T.fetch(headers, key)) }
     end
 
     def member?(_, _) do
@@ -190,19 +190,19 @@ defmodule HTTProt.Headers do
     end
 
     def count(headers) do
-      { :ok, H.size(headers) }
+      { :ok, T.size(headers) }
     end
   end
 
   defimpl Collectable do
     def empty(_) do
-      H.new
+      T.new()
     end
 
     def into(original) do
       { original, fn
           headers, { :cont, { k, v } } ->
-            headers |> Dict.put(k, v)
+            headers |> Data.Dict.put(k, v)
 
           headers, :done ->
             headers
@@ -210,6 +210,58 @@ defmodule HTTProt.Headers do
           _, :halt ->
             :ok
       end }
+    end
+  end
+
+  defimpl D.Dictionary do
+    defdelegate fetch(self, key), to: T
+    defdelegate put(self, key, value), to: T
+    defdelegate delete(self, key), to: T
+
+    def keys(self) do
+      T.reduce(self, [], fn { key, _ }, acc -> [key | acc] end)
+    end
+
+    def values(self) do
+      T.reduce(self, [], fn { _, value }, acc -> [value | acc] end)
+    end
+  end
+
+  defimpl D.Count do
+    defdelegate count(self), to: T, as: :size
+  end
+
+  defimpl D.Empty do
+    def empty?(self) do
+      T.size(self) == 0
+    end
+
+    def clear(_) do
+      T.new()
+    end
+  end
+
+  defimpl D.Reduce do
+    def reduce(self, acc, fun) do
+      Data.Seq.reduce(self, acc, fun)
+    end
+  end
+
+  defimpl D.Contains do
+    defdelegate contains?(self, key), to: Enum, as: :member?
+  end
+
+  defimpl D.Into do
+    def into(self, { key, value }) do
+      self |> T.put(key, value)
+    end
+  end
+
+  defimpl Inspect do
+    import Inspect.Algebra
+
+    def inspect(self, opts) do
+      concat ["#Headers<", to_doc(Data.list(self), opts), ">"]
     end
   end
 end

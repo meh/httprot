@@ -25,7 +25,7 @@ defmodule HTTProt.Response do
 
   def new(request) do
     socket = request.socket
-    socket |> Socket.packet! :http_bin
+    socket |> Socket.packet!(:http_bin)
 
     case read_status(socket) do
       { :ok, status } ->
@@ -77,7 +77,7 @@ defmodule HTTProt.Response do
     end
 
     def read(%S{socket: socket}) do
-      socket |> Socket.packet! :line
+      socket |> Socket.packet!(:line)
 
       case socket |> Socket.Stream.recv do
         { :ok, line } ->
@@ -92,11 +92,11 @@ defmodule HTTProt.Response do
               end
 
             size ->
-              socket |> Socket.packet! :raw
+              socket |> Socket.packet!(:raw)
 
               case socket |> Socket.Stream.recv(size) do
                 { :ok, data } ->
-                  socket |> Socket.packet! :line
+                  socket |> Socket.packet!(:line)
 
                   case socket |> Socket.Stream.recv do
                     { :ok, _ } ->
@@ -141,7 +141,7 @@ defmodule HTTProt.Response do
   defp read_body(%R{request: request}, length) do
     socket = request.socket
 
-    socket |> Socket.packet! :raw
+    socket |> Socket.packet!(:raw)
     socket |> Socket.Stream.recv(length)
   end
 
@@ -170,7 +170,7 @@ defmodule HTTProt.Response do
 
   defp read_whole(%R{request: request}) do
     socket = request.socket
-    socket |> Socket.packet! :raw
+    socket |> Socket.packet!(:raw)
 
     case read_whole([], socket) do
       { :ok, acc } ->
