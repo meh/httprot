@@ -176,17 +176,6 @@ defmodule HTTProt.Headers do
     end
   end
 
-  defimpl Access do
-    def get(headers, key) do
-      Dict.get(headers, key)
-    end
-
-    def get_and_update(table, key, fun) do
-      { get, update } = fun.(Dict.get(table, key))
-      { get, Dict.put(table, key, update) }
-    end
-  end
-
   defimpl Enumerable do
     def reduce(headers, acc, fun) do
       H.reduce(headers, acc, fun)
