@@ -7,7 +7,7 @@
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 defmodule HTTProt.Headers do
-  defstruct list: []
+  defstruct inner: %{}
 
   alias __MODULE__, as: T
   alias HTTProt.Cookie
@@ -26,11 +26,11 @@ defmodule HTTProt.Headers do
   end
 
   def parse(enum) do
-    Enum.reduce(enum, %{}, fn { name, value }, headers ->
+    %T{inner: Enum.reduce(enum, %{}, fn { name, value }, headers ->
       name = to_string(name)
       key  = String.downcase(name)
 
-      Data.Dict.update headers, key, { name, from_string(key, value) }, fn
+      Map.update headers, key, { name, from_string(key, value) }, fn
         { name, old } when old |> is_list ->
           { name, old ++ from_string(key, value) }
 
@@ -43,20 +43,18 @@ defmodule HTTProt.Headers do
               { name, value }
           end
       end
-    end) |> Enum.into(new(), fn { _, { name, value } } ->
-      { name, value }
-    end)
+    end)}
   end
 
   def fetch(self, name) do
     name = name |> to_string
     key  = String.downcase(name)
 
-    case self.list |> List.keyfind(key, 0) do
-      { _, _, value } ->
+    case Map.fetch(self.inner, key) do
+      { :ok, { _, value } } ->
         { :ok, value }
 
-      nil ->
+      :error ->
         :error
     end
   end
@@ -70,18 +68,18 @@ defmodule HTTProt.Headers do
       value
     end
 
-    %T{self | list: self.list |> List.keystore(key, 0, { key, name, value })}
+    %T{self | inner: Map.put(self.inner, key, { name, value })}
   end
 
   def delete(self, name) do
     name = name |> to_string
     key  = String.downcase(name)
 
-    %T{self | list: self.list |> List.keydelete(key, 0)}
+    %T{self | inner: Map.delete(self.inner, key)}
   end
 
   def size(self) do
-    self.list |> length
+    self.inner |> Map.size
   end
 
   def to_iodata(self) do
@@ -149,67 +147,9 @@ defmodule HTTProt.Headers do
     value
   end
 
-  @doc false
-  def reduce(%T{list: list}, acc, fun) do
-    reduce(list, acc, fun)
-  end
-
-  def reduce(_list, { :halt, acc }, _fun) do
-    { :halted, acc }
-  end
-
-  def reduce(list, { :suspend, acc }, fun) do
-    { :suspended, acc, &reduce(list, &1, fun) }
-  end
-
-  def reduce([], { :cont, acc }, _fun) do
-    { :done, acc }
-  end
-
-  def reduce([{ _key, name, value } | rest], { :cont, acc }, fun) do
-    reduce(rest, fun.({ name, value }, acc), fun)
-  end
-
   defimpl String.Chars do
     def to_string(self) do
       T.to_iodata(self) |> IO.iodata_to_binary
-    end
-  end
-
-  defimpl Enumerable do
-    def reduce(headers, acc, fun) do
-      T.reduce(headers, acc, fun)
-    end
-
-    def member?(headers, { key, value }) do
-      { :ok, match?({ :ok, ^value }, T.fetch(headers, key)) }
-    end
-
-    def member?(_, _) do
-      { :ok, false }
-    end
-
-    def count(headers) do
-      { :ok, T.size(headers) }
-    end
-  end
-
-  defimpl Collectable do
-    def empty(_) do
-      T.new()
-    end
-
-    def into(original) do
-      { original, fn
-          headers, { :cont, { k, v } } ->
-            headers |> Data.Dict.put(k, v)
-
-          headers, :done ->
-            headers
-
-          _, :halt ->
-            :ok
-      end }
     end
   end
 
@@ -218,12 +158,12 @@ defmodule HTTProt.Headers do
     defdelegate put(self, key, value), to: T
     defdelegate delete(self, key), to: T
 
-    def keys(self) do
-      T.reduce(self, [], fn { key, _ }, acc -> [key | acc] end)
+    def keys(%T{inner: inner}) do
+      Map.keys(inner)
     end
 
-    def values(self) do
-      T.reduce(self, [], fn { _, value }, acc -> [value | acc] end)
+    def values(%T{inner: inner}) do
+      Map.values(inner) |> Enum.map(&elem(&1, 1))
     end
   end
 
@@ -242,8 +182,10 @@ defmodule HTTProt.Headers do
   end
 
   defimpl D.Reduce do
-    def reduce(self, acc, fun) do
-      Data.Seq.reduce(self, acc, fun)
+    def reduce(%T{inner: inner}, acc, fun) do
+      Data.reduce(inner, acc, fn { _, { name, value } }, acc ->
+        fun.({ name, value }, acc)
+      end)
     end
   end
 
@@ -255,6 +197,10 @@ defmodule HTTProt.Headers do
     def into(self, { key, value }) do
       self |> T.put(key, value)
     end
+  end
+
+  defimpl Enumerable do
+    use Data.Enumerable
   end
 
   defimpl Inspect do
