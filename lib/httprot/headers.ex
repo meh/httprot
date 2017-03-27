@@ -190,7 +190,12 @@ defmodule HTTProt.Headers do
   end
 
   defimpl D.Contains do
-    defdelegate contains?(self, key), to: Enum, as: :member?
+    def contains?(%T{inner: inner}, name) do
+      name = to_string(name)
+      key  = String.downcase(name)
+
+      match? { :ok, _ }, Map.fetch(inner, key)
+    end
   end
 
   defimpl D.Into do
@@ -201,6 +206,10 @@ defmodule HTTProt.Headers do
 
   defimpl Enumerable do
     use Data.Enumerable
+  end
+
+  defimpl Collectable do
+    use Data.Collectable
   end
 
   defimpl Inspect do
