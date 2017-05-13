@@ -17,18 +17,13 @@ defmodule HTTProt do
 
   Enum.each [:get, :head], fn name ->
     def unquote(name)(uri, headers \\ []) do
-      case R.open(unquote(name), uri) do
-        { :ok, request } ->
-          case request |> R.headers(headers) do
-            { :ok, request } ->
-              request |> R.send
-
-            { :error, _ } = error ->
-              error
-          end
-
-        { :error, _ } = error ->
-          error
+      with { :ok, request } <- R.open(unquote(name), uri),
+           { :ok, request } <- R.headers(request, headers)
+      do
+        request |> R.send
+      else
+        { :error, reason } ->
+          { :error, reason }
       end
     end
 
@@ -39,18 +34,13 @@ defmodule HTTProt do
 
   Enum.each [:post, :put, :delete], fn name ->
     def unquote(name)(uri, data, headers \\ []) do
-      case R.open(unquote(name), uri) do
-        { :ok, request } ->
-          case request |> R.headers(headers) do
-            { :ok, request } ->
-              request |> R.send(data)
-
-            { :error, _ } = error ->
-              error
-          end
-
-        { :error, _ } = error ->
-          error
+      with { :ok, request } <- R.open(unquote(name), uri),
+           { :ok, request } <- R.headers(request, headers)
+      do
+        request |> R.send(data)
+      else
+        { :error, reason } ->
+          { :error, reason }
       end
     end
 
