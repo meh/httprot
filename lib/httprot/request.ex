@@ -45,18 +45,13 @@ defmodule HTTProt.Request do
       end
     end
 
-    case connected do
-      { :ok, socket } ->
-        case send_prelude(socket, method, uri) do
-          :ok ->
-            { :ok, %R{socket: socket, method: method, uri: uri} }
-
-          { :error, _ } = error ->
-            error
-        end
-
-      { :error, _ } = error ->
-        error
+    with { :ok, socket } <- connected,
+         :ok             <- send_prelude(socket, method, uri)
+    do
+      { :ok, %R{socket: socket, method: method, uri: uri} }
+    else
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -88,8 +83,8 @@ defmodule HTTProt.Request do
       :ok ->
         { :ok, %R{self | headers: headers} }
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -104,8 +99,8 @@ defmodule HTTProt.Request do
       :ok ->
         Response.new(self)
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -120,8 +115,8 @@ defmodule HTTProt.Request do
       :ok ->
         Response.new(self)
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -174,8 +169,8 @@ defmodule HTTProt.Request do
       :ok ->
         { :ok, Stream.new(self) }
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
