@@ -25,20 +25,15 @@ defmodule HTTProt.Response do
 
   def new(request) do
     socket = request.socket
-    socket |> Socket.packet!(:http_bin)
 
-    case read_status(socket) do
-      { :ok, status } ->
-        case read_headers([], socket) do
-          { :ok, headers } ->
-            { :ok, %R{request: request, status: status, headers: H.parse(headers |> Enum.reverse)} }
-
-          { :error, _ } = error ->
-            error
-        end
-
-      { :error, _ } = error ->
-        error
+    with :ok              <- socket |> Socket.packet(:http_bin),
+         { :ok, status }  <- read_status(socket),
+         { :ok, headers } <- read_headers([], socket)
+    do
+      { :ok, %R{request: request, status: status, headers: H.parse(headers |> Enum.reverse)} }
+    else
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -49,8 +44,8 @@ defmodule HTTProt.Response do
       { :ok, { :http_response, _, code, text } } ->
         { :ok, %S{code: code, text: text} }
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -62,8 +57,8 @@ defmodule HTTProt.Response do
       { :ok, { :http_header, _, name, _, value } } ->
         [{ name, value } | acc] |> read_headers(socket)
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -77,42 +72,37 @@ defmodule HTTProt.Response do
     end
 
     def read(%S{socket: socket}) do
-      socket |> Socket.packet!(:line)
+      with :ok           <- socket |> Socket.packet(:line),
+           { :ok, line } <- socket |> Socket.Stream.recv,
+           { :ok, data } <- read(socket, line |> String.rstrip |> String.to_integer(16))
+      do
+        { :ok, data }
+      else
+        { :error, reason } ->
+           { :error, reason }
+      end
+    end
 
+    defp read(socket, 0) do
       case socket |> Socket.Stream.recv do
-        { :ok, line } ->
-          case line |> String.rstrip |> String.to_integer(16) do
-            0 ->
-              case socket |> Socket.Stream.recv do
-                { :ok, _ } ->
-                  { :ok, nil }
+        { :ok, _ } ->
+          { :ok, nil }
 
-                { :error, _ } = error ->
-                  error
-              end
+        { :error, reason } ->
+          { :error, reason }
+      end
+    end
 
-            size ->
-              socket |> Socket.packet!(:raw)
-
-              case socket |> Socket.Stream.recv(size) do
-                { :ok, data } ->
-                  socket |> Socket.packet!(:line)
-
-                  case socket |> Socket.Stream.recv do
-                    { :ok, _ } ->
-                      { :ok, data }
-
-                    { :error, _ } = error ->
-                      error
-                  end
-
-                { :error, _ } = error ->
-                  error
-              end
-          end
-
-        { :error, _ } = error ->
-          error
+    defp read(socket, size) do
+      with :ok           <- socket |> Socket.packet(:raw),
+           { :ok, data } <- socket |> Socket.Stream.recv(size),
+           :ok           <- socket |> Socket.packet(:line),
+           { :ok, _ }    <- socket |> Socket.Stream.recv
+      do
+        { :ok, data }
+      else
+        { :error, reason } ->
+          { :error, reason }
       end
     end
   end
@@ -141,8 +131,14 @@ defmodule HTTProt.Response do
   defp read_body(%R{request: request}, length) do
     socket = request.socket
 
-    socket |> Socket.packet!(:raw)
-    socket |> Socket.Stream.recv(length)
+    with :ok           <- socket |> Socket.packet(:raw),
+         { :ok, data } <- socket |> Socket.Stream.recv(length)
+    do
+      { :ok, data }
+    else
+      { :error, reason } ->
+        { :error, reason }
+    end
   end
 
   defp read_chunked(stream) do
@@ -150,8 +146,8 @@ defmodule HTTProt.Response do
       { :ok, acc } ->
         { :ok, acc |> Enum.reverse |> IO.iodata_to_binary }
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
@@ -163,34 +159,34 @@ defmodule HTTProt.Response do
       { :ok, chunk } ->
         [chunk | acc] |> read_chunked(stream)
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
   defp read_whole(%R{request: request}) do
     socket = request.socket
-    socket |> Socket.packet!(:raw)
 
-    case read_whole([], socket) do
-      { :ok, acc } ->
-        { :ok, acc |> Enum.reverse |> IO.iodata_to_binary }
-
-      { :error, _ } = error ->
-        error
+    with :ok           <- socket |> Socket.packet(:raw),
+         { :ok, data } <- read_whole([], socket)
+    do
+      { :ok, data |> Enum.reverse |> IO.iodata_to_binary }
+    else
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 
-  defp read_whole(acc, socket) do
+  defp read_whole(data, socket) do
     case socket |> Socket.Stream.recv do
       { :ok, nil } ->
-        { :ok, acc }
+        { :ok, data }
 
       { :ok, chunk } ->
-        [chunk | acc] |> read_whole(socket)
+        [chunk | data] |> read_whole(socket)
 
-      { :error, _ } = error ->
-        error
+      { :error, reason } ->
+        { :error, reason }
     end
   end
 end
