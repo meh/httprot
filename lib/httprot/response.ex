@@ -9,20 +9,28 @@
 defmodule HTTProt.Response do
   use Socket.Helpers
 
-  alias __MODULE__, as: R
-  alias HTTProt.Headers, as: H
-  alias HTTProt.Status, as: S
+  alias __MODULE__
+  alias HTTProt.Request
+  alias HTTProt.Headers
+  alias HTTProt.Status
 
   defstruct [:request, :status, :headers]
+  @type t :: %Response{
+    request: Request.t,
+    status:  Status.t,
+    headers: Headers.t }
 
-  def success?(%R{status: status}) do
-    status |> S.success?
+  @spec success?(t) :: boolean
+  def success?(%Response{status: status}) do
+    status |> Status.success?
   end
 
-  def failure?(%R{status: status}) do
-    status |> S.failure?
+  @spec failure?(t) :: boolean
+  def failure?(%Response{status: status}) do
+    status |> Status.failure?
   end
 
+  @spec new(Request.t) :: { :ok, t } | { :error, term }
   def new(request) do
     socket = request.socket
 
@@ -30,19 +38,20 @@ defmodule HTTProt.Response do
          { :ok, status }  <- read_status(socket),
          { :ok, headers } <- read_headers([], socket)
     do
-      { :ok, %R{request: request, status: status, headers: H.parse(headers |> Enum.reverse)} }
+      { :ok, %Response{request: request, status: status, headers: Headers.parse(headers |> Enum.reverse)} }
     else
       { :error, reason } ->
         { :error, reason }
     end
   end
 
+  @spec new!(Request.t) :: t | no_return
   defbang new(request)
 
   defp read_status(socket) do
     case socket |> Socket.Stream.recv do
       { :ok, { :http_response, _, code, text } } ->
-        { :ok, %S{code: code, text: text} }
+        { :ok, %Status{code: code, text: text} }
 
       { :error, reason } ->
         { :error, reason }
@@ -63,15 +72,20 @@ defmodule HTTProt.Response do
   end
 
   defmodule Stream do
-    alias __MODULE__, as: S
+    alias HTTProt.Response
 
     defstruct [:response, :socket]
+    @type t :: %Stream{
+      response: Response.t,
+      socket:   Socket.Stream.t }
 
+    @spec new(Response.t) :: t
     def new(response) do
-      %S{response: response, socket: response.request.socket}
+      %Stream{response: response, socket: response.request.socket}
     end
 
-    def read(%S{socket: socket}) do
+    @spec read(t) :: { :ok, iodata } | { :error, term }
+    def read(%Stream{socket: socket}) do
       with :ok           <- socket |> Socket.packet(:line),
            { :ok, line } <- socket |> Socket.Stream.recv,
            { :ok, data } <- read(socket, line |> String.rstrip |> String.to_integer(16))
@@ -105,15 +119,21 @@ defmodule HTTProt.Response do
           { :error, reason }
       end
     end
+
+    @spec read!(t) :: iodata | no_return
+    defbang read(stream)
   end
 
+  @spec stream(t) :: { :ok, Stream.t } | { :error, term }
   def stream(response) do
     { :ok, Stream.new(response) }
   end
 
+  @spec stream!(t) :: Stream.t | no_return
   defbang stream(response)
 
-  def body(%R{headers: headers} = self) do
+  @spec body(t) :: { :ok, iodata } | { :error, term }
+  def body(%Response{headers: headers} = self) do
     cond do
       length = headers["Content-Length"] ->
         read_body(self, length)
@@ -126,9 +146,10 @@ defmodule HTTProt.Response do
     end
   end
 
+  @spec body!(t) :: iodata | no_return
   defbang body(response)
 
-  defp read_body(%R{request: request}, length) do
+  defp read_body(%Response{request: request}, length) do
     socket = request.socket
 
     with :ok           <- socket |> Socket.packet(:raw),
@@ -164,7 +185,7 @@ defmodule HTTProt.Response do
     end
   end
 
-  defp read_whole(%R{request: request}) do
+  defp read_whole(%Response{request: request}) do
     socket = request.socket
 
     with :ok           <- socket |> Socket.packet(:raw),

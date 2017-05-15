@@ -7,23 +7,38 @@
 #  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 defmodule HTTProt.Status do
+  @moduledoc """
+  Representation for an HTTP status.
+  """
+
   alias __MODULE__, as: S
   import Kernel, except: [to_string: 1]
 
   defstruct [:code, :text]
   @type t :: %S{
     code: integer,
-    text: String.t
-  }
+    text: String.t }
 
+  @doc """
+  Create a new Status from a code.
+  """
+  @spec new(integer) :: t
   def new(code) do
-    %S{code: code, text: to_string(code)}
+    new(code, to_string(code))
   end
 
+  @doc """
+  Create a new Status with the given code and text.
+  """
+  @spec new(integer, String.t) :: t
   def new(code, text) do
     %S{code: code, text: text}
   end
 
+  @doc """
+  Check if the status is a success.
+  """
+  @spec success?(t) :: boolean
   def success?(%S{code: code}) when code >= 200 and code < 300 or code == 304 do
     true
   end
@@ -32,10 +47,18 @@ defmodule HTTProt.Status do
     false
   end
 
+  @doc """
+  Check if the status is a failure.
+  """
+  @spec failure?(t) :: boolean
   def failure?(self) do
     not success?(self)
   end
 
+  @doc """
+  Convert an HTTP code to its text equivalent.
+  """
+  @spec to_string(integer) :: String.t
   def to_string(100), do: "Continue"
   def to_string(101), do: "Switching Protocols"
   def to_string(102), do: "Processing"
@@ -94,6 +117,10 @@ defmodule HTTProt.Status do
   def to_string(510), do: "Not Extended"
   def to_string(511), do: "Network Authentication Required"
 
+  @doc """
+  Convert an HTTP error text to its integer equivalent.
+  """
+  @spec to_integer(String.t) :: integer
   def to_integer("Continue"),                        do: 100
   def to_integer("Switching Protocols"),             do: 101
   def to_integer("Processing"),                      do: 102
