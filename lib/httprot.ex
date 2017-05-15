@@ -15,7 +15,7 @@ defmodule HTTProt do
 
   alias HTTProt.Request, as: R
 
-  Enum.each [:get, :head], fn name ->
+  Enum.each [:get, :head, :delete], fn name ->
     def unquote(name)(uri, headers \\ []) do
       with { :ok, request } <- R.open(unquote(name), uri),
            { :ok, request } <- R.headers(request, headers)
@@ -32,7 +32,7 @@ defmodule HTTProt do
     end
   end
 
-  Enum.each [:post, :put, :delete], fn name ->
+  Enum.each [:post, :put], fn name ->
     def unquote(name)(uri, data, headers \\ []) do
       with { :ok, request } <- R.open(unquote(name), uri),
            { :ok, request } <- R.headers(request, headers)
