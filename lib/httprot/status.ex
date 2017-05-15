@@ -11,6 +11,10 @@ defmodule HTTProt.Status do
   import Kernel, except: [to_string: 1]
 
   defstruct [:code, :text]
+  @type t :: %S{
+    code: integer,
+    text: String.t
+  }
 
   def new(code) do
     %S{code: code, text: to_string(code)}
