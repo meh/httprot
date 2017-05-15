@@ -3,7 +3,7 @@ defmodule Httprot.Mixfile do
 
   def project do
     [ app: :httprot,
-      version: "0.2.0",
+      version: "0.2.1",
       deps: deps(),
       package: package(),
       description: "HTTP client library" ]
