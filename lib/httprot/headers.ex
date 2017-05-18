@@ -136,11 +136,15 @@ defmodule HTTProt.Headers do
   end
 
   defp from_string("cookie", value) do
-    for cookie <- value |> String.split(~r/\s*;\s*/) do
-      [name, value] = String.split(cookie, ~r/=/, parts: 2)
+    value |> String.split(~r/\s*;\s*/) |> Enum.map(fn cookie ->
+      case String.split(cookie, ~r/=/, parts: 2) do
+        [name, value] ->
+          %Cookie{name: name, value: value}
 
-      %Cookie{name: name, value: value}
-    end
+        _ ->
+          nil
+      end
+    end) |> Enum.reject(&(&1 == nil))
   end
 
   defp from_string(_, value) do
